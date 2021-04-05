@@ -6,8 +6,9 @@
 #include <Wire.h>
 #include "Adafruit_SHT31.h"
 
-#define Led 13
+//#define Led 13
 #define DS3231_I2C_ADDRESS 0x68
+#define Addr 0x4A
 
 
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
@@ -41,11 +42,9 @@ OneWire ds(DS18S20_Pin);  // 3. Dijital pinde.
 
 
   void setup (){
-  Serial.begin    (9600);
-  Wire.begin          ();
-  pinMode  (Led, OUTPUT);   
-  digitalWrite(Led, LOW); 
-   Serial.begin(9600);
+    
+  Wire.begin();
+  Serial.begin(9600);
   while (!Serial);
 
   Serial.println("LoRa Sender");
@@ -59,14 +58,21 @@ OneWire ds(DS18S20_Pin);  // 3. Dijital pinde.
   LoRa.setTxPower(20);
   
 if (! sht31.begin(0x44)) { // Set to 0x45 for alternate i2c addr
-Serial.println("Couldn't find SHT31");
-while (1) delay(1);
-} 
-}
+  Serial.println("Couldn't find SHT31");
+  while (1) delay(1);
+  }
+
+  Wire.beginTransmission(Addr);
+  Wire.write(0x02);
+  Wire.write(0x40);
+  Wire.endTransmission();
+  delay(300);
+   
+ }
 
 void loop (){
    displayTime();
-   if ( (hour == 00 && minute == 00 && second == 00) || (hour == 01 && minute == 00 && second == 00) || (hour == 02 && minute == 00 && second == 00) ||
+   /*if ( (hour == 00 && minute == 00 && second == 00) || (hour == 01 && minute == 00 && second == 00) || (hour == 02 && minute == 00 && second == 00) ||
         (hour == 03 && minute == 00 && second == 00) || (hour == 04 && minute == 00 && second == 00) || (hour == 05 && minute == 00 && second == 00) ||
         (hour == 06 && minute == 00 && second == 00) || (hour == 07 && minute == 00 && second == 00) || (hour == 8  &&  minute  == 00 && second == 00) ||
         (hour == 9 && minute  == 00 && second == 00) || (hour == 10 && minute == 00 && second == 00) || (hour == 11 && minute == 00 && second == 00) ||
@@ -74,9 +80,13 @@ void loop (){
         (hour == 15 && minute == 00 && second == 00) || (hour == 16 && minute == 00 && second == 00) || (hour == 17 && minute == 00 && second == 00) ||
         (hour == 18 && minute == 00 && second == 00) || (hour == 19 && minute == 00 && second == 00) || (hour == 20 && minute == 00 && second == 00) ||
         (hour == 21 && minute == 00 && second == 00) || (hour == 22 && minute == 00 && second == 00) || (hour == 23 && minute == 00 && second == 00)   )
-
+*/
         
-    { 
+    {
+
+    Serial.println();
+    Serial.println("---------------------------------");  
+    Serial.println();
     Serial.print("Tarih: ");
     Serial.print(dayOfMonth  );
     Serial.print('/');
@@ -92,17 +102,44 @@ void loop (){
     Serial.print(':');
     Serial.print(second);
     Serial.println();
-    Serial.println("---------------------------------");
+    //Serial.println("---------------------------------");
+    Serial.println();
     
     delay(1000);
 
       sensor();
       //while(1);
                   
-    }                                           
-  }
+    }
+}
 
     void sensor() {
+
+  unsigned int data[2];
+
+
+  Wire.beginTransmission(Addr);
+  Wire.write(0x03);
+  Wire.endTransmission();
+
+  Wire.requestFrom(Addr, 2);
+
+  if (Wire.available() == 2)
+  {
+    data[0] = Wire.read();
+    data[1] = Wire.read();
+  }
+
+  int exponent = (data[0] & 0xF0) >> 4;
+  int mantissa = ((data[0] & 0x0F) << 4) | (data[1] & 0x0F);
+  float luminance = pow(2, exponent) * mantissa * 0.045;
+
+  
+  Serial.print("Ortam Işığı Parlaklığı: ");
+  Serial.print(luminance);
+  Serial.println(" LUX");
+ 
+    
 
    // temperature değişkenini sıcaklık değerini alma fonksiyonuna bağlıyoruz.
   float temperature = getTemp();
@@ -111,7 +148,7 @@ void loop (){
   Serial.print(temperature);
   Serial.println("°C");
   // 1 saniye bekliyoruz. Monitörde saniyede 1 sıcaklık değeri yazmaya devam edecek.
-  delay(1000);
+  //delay(1000);
 
   float t = sht31.readTemperature();
   float h = sht31.readHumidity();
@@ -138,15 +175,16 @@ void loop (){
 
   }
 
-  delay(1000);
+  //delay(1000);
   int val;
   val = analogRead(0); //connect sensor to Analog 0
   Serial.print("Toprak Nem Değeri:      ");
   Serial.print("%");
   Serial.println(val/10.23); //print the value to serial port
-  Serial.println("");
+  Serial.print("");
   
-  delay(1000);
+  
+  //delay(1000);
   // send packet
   LoRa.beginPacket();
   LoRa.println("LoRa Receiver");
@@ -166,29 +204,33 @@ void loop (){
   LoRa.print(':');
   LoRa.print(second);
   LoRa.println();
-  LoRa.print("---------------------------");
+  //LoRa.print("---------------------------");
     
     delay(1000);
     
   LoRa.println();
-  LoRa.print("Toprak Sıcaklık Değeri: ");
+  
+  LoRa.print("Toprak Sıcaklğı:  ");
   LoRa.print(temperature);
   LoRa.println(" °C");
-  LoRa.print("Toprak Nem Değeri:      ");
+  LoRa.print("Toprak Nemi:      ");
   LoRa.print(val/10.23);
   LoRa.println(" %");
-  LoRa.print("Hava Sıcaklık Değeri:   ");
+  LoRa.print("Hava Sıcaklığı:   ");
   LoRa.print(t);
   LoRa.println(" °C");
-  LoRa.print("Hava Nem Değeri:        ");
+  LoRa.print("Hava Nemi:        ");
   LoRa.print(h);
   LoRa.println(" %");
+  LoRa.print("Işık Parlaklığı:  ");
+  LoRa.print(luminance);
+  LoRa.println(" LUX");
   LoRa.println();
     
   LoRa.endPacket();
 
 
-  delay(1000);
+ 
   }
 
   
